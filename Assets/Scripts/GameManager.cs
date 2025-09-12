@@ -12,12 +12,15 @@ public class GameManager : MonoBehaviour
     [Header("Layout")]
     [SerializeField] private GridLayoutManager gridLayoutManager;
     [SerializeField] private bool useResponsiveLayout = true;
-    [SerializeField] private bool autoScaleCards = false; // NEW: Control scaling separately
+    [SerializeField] private bool autoScaleCards = false;
     [SerializeField] private float fallbackCardSpacing = 1.2f;
     
     [Header("Game Rules")]
     [SerializeField] private float matchCheckDelay = 1f;
     [SerializeField] private int maxFlippedCards = 2;
+    
+    [Header("Scoring")]
+    [SerializeField] private ScoreManager scoreManager;
     
     private List<Card> allCards = new List<Card>();
     private List<Card> flippedCards = new List<Card>();
@@ -42,6 +45,13 @@ public class GameManager : MonoBehaviour
                 layoutManagerObj.transform.SetParent(transform);
                 gridLayoutManager = layoutManagerObj.AddComponent<GridLayoutManager>();
             }
+            
+            if (scoreManager == null)
+            {
+                GameObject scoreManagerObj = new GameObject("ScoreManager");
+                scoreManagerObj.transform.SetParent(transform);
+                scoreManager = scoreManagerObj.AddComponent<ScoreManager>();
+            }
         }
         else
         {
@@ -52,6 +62,10 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         CreateGrid();
+        if (scoreManager != null)
+        {
+            scoreManager.StartNewGame();
+        }
     }
     
     private void CreateGrid()
@@ -67,7 +81,6 @@ public class GameManager : MonoBehaviour
         
         totalPairs = totalCards / 2;
         
-        // Calculate responsive layout
         Vector2 cardSize = Vector2.one;
         Vector2 spacing = Vector2.one * fallbackCardSpacing;
         
@@ -77,7 +90,6 @@ public class GameManager : MonoBehaviour
             spacing = gridLayoutManager.GetCalculatedSpacing();
         }
         
-        // Create card values (pairs)
         List<int> cardValues = new List<int>();
         for (int i = 0; i < totalPairs; i++)
         {
@@ -87,7 +99,6 @@ public class GameManager : MonoBehaviour
         
         ShuffleList(cardValues);
         
-        // Create cards in grid
         int cardIndex = 0;
         for (int y = 0; y < gridSize.y; y++)
         {
@@ -112,14 +123,11 @@ public class GameManager : MonoBehaviour
                 GameObject cardObj = Instantiate(cardPrefab, position, Quaternion.identity, cardContainer);
                 Card card = cardObj.GetComponent<Card>();
                 
-                // REMOVED: Auto-scaling - only scale if explicitly enabled
                 if (useResponsiveLayout && autoScaleCards)
                 {
                     card.SetCardScale(new Vector3(cardSize.x, cardSize.y, 1f));
                 }
-                // Cards now keep their original scale from the prefab!
                 
-                // Set card value and sprite
                 card.SetCardValue(cardValues[cardIndex]);
                 if (cardValues[cardIndex] < cardSprites.Count)
                 {
@@ -141,6 +149,12 @@ public class GameManager : MonoBehaviour
             
         if (flippedCards.Count >= maxFlippedCards)
             return;
+        
+        // Record the move for scoring
+        if (scoreManager != null)
+        {
+            scoreManager.RecordMove();
+        }
         
         clickedCard.FlipCard();
         flippedCards.Add(clickedCard);
@@ -177,6 +191,12 @@ public class GameManager : MonoBehaviour
             }
             matchedPairs++;
             
+            // Record match for scoring
+            if (scoreManager != null)
+            {
+                scoreManager.RecordMatch(matchedPairs, totalPairs);
+            }
+            
             Debug.Log($"Match found! Pairs matched: {matchedPairs}/{totalPairs}");
             
             if (matchedPairs >= totalPairs)
@@ -186,6 +206,12 @@ public class GameManager : MonoBehaviour
         }
         else
         {
+            // Record mismatch for scoring
+            if (scoreManager != null)
+            {
+                scoreManager.RecordMismatch();
+            }
+            
             Debug.Log("No match - flipping cards back");
             foreach (Card card in flippedCards)
             {
@@ -222,6 +248,11 @@ public class GameManager : MonoBehaviour
         isCheckingMatch = false;
         
         CreateGrid();
+        
+        if (scoreManager != null)
+        {
+            scoreManager.StartNewGame();
+        }
     }
     
     public void SetGridSize(Vector2Int newGridSize)
