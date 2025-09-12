@@ -119,6 +119,12 @@ public class Card : MonoBehaviour
         cardValue = value;
     }
     
+    public void SetFrontSprite(Sprite sprite)
+    {
+        if (frontSprite != null)
+            frontSprite.sprite = sprite;
+    }
+    
     public void SetCardScale(Vector3 newScale)
     {
         cardScale = newScale;
@@ -134,10 +140,10 @@ public class Card : MonoBehaviour
     
     private void OnMouseDown()
     {
-        // Allow continuous clicking as required
-        if (!isFlipping && !isMatched)
+        // Send click to GameManager instead of handling directly
+        if (GameManager.Instance != null)
         {
-            FlipCard();
+            GameManager.Instance.OnCardClicked(this);
         }
     }
 }
