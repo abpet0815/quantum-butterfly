@@ -185,6 +185,25 @@ public class ScoreManager : MonoBehaviour
         return currentCombo;
     }
     
+    // NEW: Method to restore from JSON save data
+    public void RestoreFromSave(GameSaveData saveData)
+    {
+        currentScore = saveData.currentScore;
+        currentCombo = saveData.currentCombo;
+        totalMoves = saveData.totalMoves;
+        isPerfectGame = saveData.isPerfectGame;
+        
+        // Restore timing
+        gameStartTime = Time.time - saveData.gameTime;
+        
+        // Trigger UI updates
+        OnScoreChanged?.Invoke(currentScore);
+        OnComboChanged?.Invoke(currentCombo);
+        OnMovesChanged?.Invoke(totalMoves);
+        
+        Debug.Log($"📊 Score restored: {currentScore} points, {totalMoves} moves");
+    }
+    
     // Public getters for UI
     public int GetCurrentScore() => currentScore;
     public int GetCurrentCombo() => currentCombo;

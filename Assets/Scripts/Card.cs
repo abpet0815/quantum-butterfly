@@ -39,7 +39,6 @@ public class Card : MonoBehaviour
     {
         isFlipping = true;
         
-        // First half of flip
         float elapsed = 0f;
         Vector3 startScale = transform.localScale;
         Vector3 halfScale = new Vector3(0f, startScale.y, startScale.z);
@@ -52,16 +51,14 @@ public class Card : MonoBehaviour
             yield return null;
         }
         
-        // Switch sprites
         isFlipped = !isFlipped;
         if (isFlipped)
             ShowFrontSide();
         else
             ShowBackSide();
         
-        UpdateColliderSize(); // Update collider after sprite switch
+        UpdateColliderSize();
         
-        // Second half of flip
         elapsed = 0f;
         while (elapsed < flipDuration / 2f)
         {
@@ -75,6 +72,55 @@ public class Card : MonoBehaviour
         isFlipping = false;
     }
 
+    // FIXED: Method to restore card from save data with proper timing
+    public void RestoreFromSaveData(CardSaveData saveData, Sprite frontSpr = null)
+    {
+        // Set card value first
+        SetCardValue(saveData.cardValue);
+        
+        // Set sprite if provided - CRITICAL: Do this BEFORE state restoration
+        if (frontSpr != null)
+        {
+            SetFrontSprite(frontSpr);
+        }
+        
+        // CRITICAL: Force both sprites to be active initially so they exist
+        frontSprite.gameObject.SetActive(true);
+        backSprite.gameObject.SetActive(true);
+        
+        // Now restore states
+        isMatched = saveData.isMatched;
+        isFlipped = saveData.isFlipped;
+        
+        // CRITICAL: Wait one frame for sprites to initialize, then sync visuals
+        StartCoroutine(DelayedVisualSync());
+    }
+    
+    // CRITICAL: Delayed visual sync to ensure sprites are ready
+    private IEnumerator DelayedVisualSync()
+    {
+        yield return null; // Wait one frame
+        
+        // Now sync visuals with state
+        if (isMatched)
+        {
+            SetMatched();
+            ShowFrontSide(); // Matched cards show front
+        }
+        else if (isFlipped)
+        {
+            ShowFrontSide(); // Flipped cards show front
+        }
+        else
+        {
+            ShowBackSide(); // Normal cards show back
+        }
+        
+        UpdateColliderSize();
+        
+        Debug.Log($"🔄 Card {cardValue}: Restored - Flipped={isFlipped}, Matched={isMatched}, Visual={frontSprite.gameObject.activeInHierarchy}");
+    }
+
     private void UpdateColliderSize()
     {
         BoxCollider2D collider = GetComponent<BoxCollider2D>();
@@ -83,35 +129,32 @@ public class Card : MonoBehaviour
             collider = gameObject.AddComponent<BoxCollider2D>();
         }
 
-        // Get the currently active sprite
         SpriteRenderer activeSprite = isFlipped ? frontSprite : backSprite;
         
         if (activeSprite != null && activeSprite.sprite != null)
         {
-            // Get the sprite size in world units
             Vector2 spriteSize = activeSprite.sprite.bounds.size;
-            
-            // Apply the transform scale to the collider size
-            collider.size = new Vector2(
-                spriteSize.x,
-                spriteSize.y
-            );
-            
-            // Center the collider
+            collider.size = new Vector2(spriteSize.x, spriteSize.y);
             collider.offset = Vector2.zero;
         }
     }
     
     private void ShowFrontSide()
     {
-        frontSprite.gameObject.SetActive(true);
-        backSprite.gameObject.SetActive(false);
+        if (frontSprite != null && backSprite != null)
+        {
+            frontSprite.gameObject.SetActive(true);
+            backSprite.gameObject.SetActive(false);
+        }
     }
     
     private void ShowBackSide()
     {
-        frontSprite.gameObject.SetActive(false);
-        backSprite.gameObject.SetActive(true);
+        if (frontSprite != null && backSprite != null)
+        {
+            frontSprite.gameObject.SetActive(false);
+            backSprite.gameObject.SetActive(true);
+        }
     }
     
     public void SetCardValue(int value)
@@ -121,8 +164,10 @@ public class Card : MonoBehaviour
     
     public void SetFrontSprite(Sprite sprite)
     {
-        if (frontSprite != null)
+        if (frontSprite != null && sprite != null)
+        {
             frontSprite.sprite = sprite;
+        }
     }
     
     public void SetCardScale(Vector3 newScale)
@@ -135,12 +180,10 @@ public class Card : MonoBehaviour
     public void SetMatched()
     {
         isMatched = true;
-        // Optional: Add matched visual effect
     }
     
     private void OnMouseDown()
     {
-        // Send click to GameManager instead of handling directly
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnCardClicked(this);
