@@ -63,6 +63,14 @@ public class GameManager : MonoBehaviour
                 saveManagerObj.transform.SetParent(transform);
                 jsonSaveManager = saveManagerObj.AddComponent<JsonSaveLoadManager>();
             }
+            
+            // Create AudioManager if not assigned
+            GameObject audioManagerObj = GameObject.Find("AudioManager");
+            if (audioManagerObj == null)
+            {
+                audioManagerObj = new GameObject("AudioManager");
+                audioManagerObj.AddComponent<AudioManager>();
+            }
         }
         else
         {
@@ -230,6 +238,12 @@ public class GameManager : MonoBehaviour
             }
             matchedPairs++;
             
+            // Play match sound
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySound(AudioManager.SoundType.CardMatch);
+            }
+            
             // Record match for scoring
             if (scoreManager != null)
             {
@@ -242,10 +256,22 @@ public class GameManager : MonoBehaviour
             if (matchedPairs >= totalPairs)
             {
                 Debug.Log("🎉 You Win! All pairs matched!");
+                
+                // Play win sound
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlaySound(AudioManager.SoundType.GameWin);
+                }
             }
         }
         else
         {
+            // Play mismatch sound
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySound(AudioManager.SoundType.CardMismatch);
+            }
+            
             // Record mismatch for scoring
             if (scoreManager != null)
             {
@@ -275,57 +301,55 @@ public class GameManager : MonoBehaviour
         }
     }
     
-    // NEW: Method to load from JSON save data
-    // Replace your LoadFromSaveData method in GameManager with this:
-public void LoadFromSaveData(GameSaveData saveData)
-{
-    Debug.Log($"🔄 Loading game from save data...");
-    
-    // Clear current game
-    foreach (Card card in allCards)
+    // Method to load from JSON save data
+    public void LoadFromSaveData(GameSaveData saveData)
     {
-        if (card != null) DestroyImmediate(card.gameObject);
-    }
-    allCards.Clear();
-    flippedCards.Clear();
-    
-    // Restore game settings
-    gridSize = saveData.gridSize;
-    matchedPairs = saveData.matchedPairs;
-    totalPairs = saveData.totalPairs;
-    
-    // Start coroutine to restore cards with proper timing
-    StartCoroutine(RestoreCardsCoroutine(saveData.cards));
-}
-
-// NEW: Coroutine to restore cards with proper timing
-private IEnumerator RestoreCardsCoroutine(List<CardSaveData> cardStates)
-{
-    foreach (CardSaveData cardData in cardStates)
-    {
-        // Create card at saved position
-        GameObject cardObj = Instantiate(cardPrefab, cardData.GetPosition(), Quaternion.identity, cardContainer);
-        Card card = cardObj.GetComponent<Card>();
+        Debug.Log($"🔄 Loading game from save data...");
         
-        // Get the correct sprite for this card
-        Sprite frontSprite = null;
-        if (cardData.cardValue < cardSprites.Count)
+        // Clear current game
+        foreach (Card card in allCards)
         {
-            frontSprite = cardSprites[cardData.cardValue];
+            if (card != null) DestroyImmediate(card.gameObject);
+        }
+        allCards.Clear();
+        flippedCards.Clear();
+        
+        // Restore game settings
+        gridSize = saveData.gridSize;
+        matchedPairs = saveData.matchedPairs;
+        totalPairs = saveData.totalPairs;
+        
+        // Start coroutine to restore cards with proper timing
+        StartCoroutine(RestoreCardsCoroutine(saveData.cards));
+    }
+    
+    // Coroutine to restore cards with proper timing
+    private IEnumerator RestoreCardsCoroutine(List<CardSaveData> cardStates)
+    {
+        foreach (CardSaveData cardData in cardStates)
+        {
+            // Create card at saved position
+            GameObject cardObj = Instantiate(cardPrefab, cardData.GetPosition(), Quaternion.identity, cardContainer);
+            Card card = cardObj.GetComponent<Card>();
+            
+            // Get the correct sprite for this card
+            Sprite frontSprite = null;
+            if (cardData.cardValue < cardSprites.Count)
+            {
+                frontSprite = cardSprites[cardData.cardValue];
+            }
+            
+            // Restore card with sprite
+            card.RestoreFromSaveData(cardData, frontSprite);
+            
+            allCards.Add(card);
+            
+            // Wait one frame between cards to ensure proper initialization
+            yield return null;
         }
         
-        // Restore card with sprite - CRITICAL: Pass sprite to restore method
-        card.RestoreFromSaveData(cardData, frontSprite);
-        
-        allCards.Add(card);
-        
-        // Wait one frame between cards to ensure proper initialization
-        yield return null;
+        Debug.Log($"✅ Game restored: {allCards.Count} cards, Visual states synced!");
     }
-    
-    Debug.Log($"✅ Game restored: {allCards.Count} cards, Visual states synced!");
-}
-
     
     public void RestartGame()
     {

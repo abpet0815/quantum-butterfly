@@ -32,6 +32,12 @@ public class Card : MonoBehaviour
     {
         if (isFlipping || isMatched) return;
         
+        // Play flip sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySound(AudioManager.SoundType.CardFlip);
+        }
+        
         StartCoroutine(FlipCardCoroutine());
     }
 
@@ -72,7 +78,7 @@ public class Card : MonoBehaviour
         isFlipping = false;
     }
 
-    // FIXED: Method to restore card from save data with proper timing
+    // Method to restore card from save data with proper timing
     public void RestoreFromSaveData(CardSaveData saveData, Sprite frontSpr = null)
     {
         // Set card value first

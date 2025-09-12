@@ -92,6 +92,12 @@ public class ScoreManager : MonoBehaviour
             currentCombo++;
             matchScore += currentCombo * comboMultiplier;
             Debug.Log($"🔥 COMBO x{currentCombo}! Bonus: +{currentCombo * comboMultiplier}");
+            
+            // Play combo sound for high combos
+            if (currentCombo >= 3 && AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySound(AudioManager.SoundType.ComboBonus);
+            }
         }
         else
         {
@@ -185,7 +191,7 @@ public class ScoreManager : MonoBehaviour
         return currentCombo;
     }
     
-    // NEW: Method to restore from JSON save data
+    // Method to restore from JSON save data
     public void RestoreFromSave(GameSaveData saveData)
     {
         currentScore = saveData.currentScore;
