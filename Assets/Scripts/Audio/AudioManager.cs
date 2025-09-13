@@ -16,15 +16,16 @@ public class AudioManager : MonoBehaviour
     [SerializeField] private AudioClip backgroundMusic;
     [SerializeField] private bool playMusicOnStart = true;
     
-    public enum SoundType
-    {
-        CardFlip,
-        CardMatch,
-        CardMismatch,
-        GameWin,
-        ButtonClick,
-        ComboBonus
-    }
+public enum SoundType
+{
+    CardFlip,
+    CardMatch,
+    CardMismatch,
+    GameWin,
+    ButtonClick,
+    ComboBonus
+}
+
     
     [System.Serializable]
     public class SoundEntry
@@ -64,6 +65,8 @@ public class AudioManager : MonoBehaviour
         }
         
         LoadVolumeSettings();
+        UpdateVolumeSettings();
+        LogAudioConfiguration();
     }
     
     private void InitializeAudio()
@@ -73,6 +76,7 @@ public class AudioManager : MonoBehaviour
             musicSource = gameObject.AddComponent<AudioSource>();
             musicSource.loop = true;
             musicSource.playOnAwake = false;
+            Debug.Log("AudioManager: Music AudioSource initialized.");
         }
         
         if (sfxSource == null)
@@ -80,8 +84,8 @@ public class AudioManager : MonoBehaviour
             sfxSource = gameObject.AddComponent<AudioSource>();
             sfxSource.loop = false;
             sfxSource.playOnAwake = false;
+            Debug.Log("AudioManager: SFX AudioSource initialized.");
         }
-        
         UpdateVolumeSettings();
     }
     
@@ -93,6 +97,7 @@ public class AudioManager : MonoBehaviour
         {
             sfxSource.pitch = soundEntry.pitch;
             sfxSource.PlayOneShot(soundEntry.audioClip, soundEntry.volume * sfxVolume * masterVolume);
+            Debug.Log($"AudioManager: Playing sound {soundType} with volume {soundEntry.volume * sfxVolume * masterVolume}. Individual volumes: SoundEntry.volume={soundEntry.volume}, SFXVolume={sfxVolume}, MasterVolume={masterVolume}");
             
             // Reset pitch for next sound
             sfxSource.pitch = 1f;
@@ -179,13 +184,22 @@ public class AudioManager : MonoBehaviour
         PlayerPrefs.SetFloat("SFXVolume", sfxVolume);
         PlayerPrefs.Save();
     }
+
+    // Method to clear all PlayerPrefs for testing/resetting
+    public void ClearAllPlayerPrefs()
+    {
+        PlayerPrefs.DeleteAll();
+        Debug.Log("All PlayerPrefs cleared. Volume settings reset to default.");
+        LoadVolumeSettings(); // Reload settings after clearing
+    }
     
     private void LoadVolumeSettings()
     {
         masterVolume = PlayerPrefs.GetFloat("MasterVolume", 1f);
         musicVolume = PlayerPrefs.GetFloat("MusicVolume", 0.7f);
         sfxVolume = PlayerPrefs.GetFloat("SFXVolume", 1f);
-        UpdateVolumeSettings();
+        Debug.Log($"Loaded Volume Settings: Master={masterVolume}, Music={musicVolume}, SFX={sfxVolume}");
+
     }
     
     // Public getters for UI
@@ -193,4 +207,13 @@ public class AudioManager : MonoBehaviour
     public float GetMusicVolume() => musicVolume;
     public float GetSFXVolume() => sfxVolume;
     public bool IsMusicPlaying() => musicSource != null && musicSource.isPlaying;
+
+    private void LogAudioConfiguration()
+    {
+        Debug.Log($"AudioManager Configuration: MasterVolume={masterVolume}, MusicVolume={musicVolume}, SFXVolume={sfxVolume}");
+        foreach (var sound in soundEffects)
+        {
+            Debug.Log($"  Sound: {sound.soundType}, Clip: {sound.audioClip?.name ?? "None"}, Volume: {sound.volume}, Pitch: {sound.pitch}");
+        }
+    }
 }
