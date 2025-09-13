@@ -5,8 +5,8 @@ using TMPro;
 public class UIManager : MonoBehaviour
 {
     [Header("Backgrounds")]
-    [SerializeField] private GameObject mainMenuBackground;     // Fullscreen Image (stretch anchors)
-    [SerializeField] private GameObject gameplayBackground;     // Fullscreen Image (stretch anchors)
+    [SerializeField] private GameObject mainMenuBackground;
+    [SerializeField] private GameObject gameplayBackground;
 
     [Header("UI Panels")]
     [SerializeField] private GameObject mainMenuPanel;
@@ -39,8 +39,11 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Button playAgainButton;
     [SerializeField] private Button mainMenuButton;
 
-    [Header("Settings - Grid Size Only")]
-    [SerializeField] private TMP_Dropdown gridSizeDropdown;
+    [Header("Settings - Grid Size Buttons")]
+    [SerializeField] private Button gridSize2x2Button;
+    [SerializeField] private Button gridSize3x4Button;
+    [SerializeField] private Button gridSize4x4Button;
+    [SerializeField] private Button gridSize5x6Button;
     [SerializeField] private Button settingsBackButton;
 
     [Header("Pause Menu")]
@@ -53,6 +56,7 @@ public class UIManager : MonoBehaviour
     private bool isPaused = false;
     private Vector2Int pendingGridSize;
     private bool isInGameSettings = false;
+    private int selectedGridIndex = 2; // Default to 4x4
 
     public enum GameState
     {
@@ -82,7 +86,7 @@ public class UIManager : MonoBehaviour
     private void Start()
     {
         SetupButtons();
-        SetupGridSizeDropdown();
+        SetupGridSizeButtons();
         SubscribeToGameEvents();
         UpdateContinueButton();
 
@@ -123,22 +127,100 @@ public class UIManager : MonoBehaviour
         pauseMainMenuButton.onClick.AddListener(ShowMainMenu);
     }
 
-    private void SetupGridSizeDropdown()
+    private void SetupGridSizeButtons()
     {
-        gridSizeDropdown.ClearOptions();
-        gridSizeDropdown.AddOptions(new System.Collections.Generic.List<string>
+        // Grid Size Buttons
+        if (gridSize2x2Button != null)
+            gridSize2x2Button.onClick.AddListener(() => OnGridSizeButtonClicked(0));
+        if (gridSize3x4Button != null)
+            gridSize3x4Button.onClick.AddListener(() => OnGridSizeButtonClicked(1));
+        if (gridSize4x4Button != null)
+            gridSize4x4Button.onClick.AddListener(() => OnGridSizeButtonClicked(2));
+        if (gridSize5x6Button != null)
+            gridSize5x6Button.onClick.AddListener(() => OnGridSizeButtonClicked(3));
+
+        // Update button states to show current selection
+        UpdateGridSizeButtonVisuals();
+    }
+
+    private void OnGridSizeButtonClicked(int gridIndex)
+    {
+        PlayButtonSound();
+        
+        selectedGridIndex = gridIndex;
+        UpdateGridSizeButtonVisuals();
+
+        Vector2Int[] gridSizes = {
+            new Vector2Int(2, 2),  // 2x2 (4 cards)
+            new Vector2Int(3, 4),  // 3x4 (12 cards)
+            new Vector2Int(4, 4),  // 4x4 (16 cards)
+            new Vector2Int(5, 6)   // 5x6 (30 cards)
+        };
+
+        if (gridIndex >= 0 && gridIndex < gridSizes.Length)
         {
-            "2x2 (4 cards)",
-            "3x4 (12 cards)",
-            "4x4 (16 cards)",
-            "5x4 (20 cards)",
-            "6x4 (24 cards)"
-        });
+            Vector2Int selectedSize = gridSizes[gridIndex];
 
-        gridSizeDropdown.value = 2;
-        gridSizeDropdown.RefreshShownValue();
+            if (isInGameSettings)
+            {
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.SetGridSize(selectedSize);
+                    Debug.Log($"🎯 In-game grid changed to: {selectedSize.x}x{selectedSize.y} (applied immediately)");
+                }
+            }
+            else
+            {
+                pendingGridSize = selectedSize;
+                Debug.Log($"📋 Main menu grid set to: {selectedSize.x}x{selectedSize.y} (will apply on Play)");
+            }
+        }
+    }
 
-        gridSizeDropdown.onValueChanged.AddListener(OnGridSizeChanged);
+    private void UpdateGridSizeButtonVisuals()
+    {
+        // Reset all button colors to normal
+        ResetButtonColor(gridSize2x2Button);
+        ResetButtonColor(gridSize3x4Button);
+        ResetButtonColor(gridSize4x4Button);
+        ResetButtonColor(gridSize5x6Button);
+
+        // Highlight the selected button
+        Button selectedButton = null;
+        switch (selectedGridIndex)
+        {
+            case 0: selectedButton = gridSize2x2Button; break;
+            case 1: selectedButton = gridSize3x4Button; break;
+            case 2: selectedButton = gridSize4x4Button; break;
+            case 3: selectedButton = gridSize5x6Button; break;
+        }
+
+        if (selectedButton != null)
+        {
+            HighlightButton(selectedButton);
+        }
+    }
+
+    private void ResetButtonColor(Button button)
+    {
+        if (button != null)
+        {
+            ColorBlock colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.selectedColor = Color.white;
+            button.colors = colors;
+        }
+    }
+
+    private void HighlightButton(Button button)
+    {
+        if (button != null)
+        {
+            ColorBlock colors = button.colors;
+            colors.normalColor = Color.yellow;
+            colors.selectedColor = Color.yellow;
+            button.colors = colors;
+        }
     }
 
     private void SubscribeToGameEvents()
@@ -185,7 +267,6 @@ public class UIManager : MonoBehaviour
 
     public void ShowMainMenu()
     {
-        // Clear all cards before showing main menu
         if (GameManager.Instance != null)
         {
             GameManager.Instance.ClearAllCards();
@@ -197,7 +278,6 @@ public class UIManager : MonoBehaviour
         isInGameSettings = false;
 
         GameInputManager.SetPaused(false);
-
         UpdateContinueButton();
 
         PlayButtonSound();
@@ -239,6 +319,7 @@ public class UIManager : MonoBehaviour
     {
         previousState = currentState;
         SetActivePanel(GameState.Settings);
+        UpdateGridSizeButtonVisuals(); // Refresh button states when showing settings
         PlayButtonSound();
     }
 
@@ -319,36 +400,6 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    private void OnGridSizeChanged(int index)
-    {
-        Vector2Int[] gridSizes = {
-            new Vector2Int(2, 2),  // 2x2 (4 cards)
-            new Vector2Int(3, 4),  // 3x4 (12 cards)
-            new Vector2Int(4, 4),  // 4x4 (16 cards)
-            new Vector2Int(5, 4),  // 5x4 (20 cards)
-            new Vector2Int(6, 4)   // 6x4 (24 cards)
-        };
-
-        if (index >= 0 && index < gridSizes.Length)
-        {
-            Vector2Int selectedSize = gridSizes[index];
-
-            if (isInGameSettings)
-            {
-                if (GameManager.Instance != null)
-                {
-                    GameManager.Instance.SetGridSize(selectedSize);
-                    Debug.Log($"🎯 In-game grid changed to: {selectedSize.x}x{selectedSize.y} (applied immediately)");
-                }
-            }
-            else
-            {
-                pendingGridSize = selectedSize;
-                Debug.Log($"📋 Main menu grid set to: {selectedSize.x}x{selectedSize.y} (will apply on Play)");
-            }
-        }
-    }
-
     private void SetActivePanel(GameState newState)
     {
         // Hide all panels
@@ -358,7 +409,6 @@ public class UIManager : MonoBehaviour
         if (settingsPanel) settingsPanel.SetActive(false);
         if (pausePanel) pausePanel.SetActive(false);
 
-        // Backgrounds: main menu for MainMenu/Settings (from menu), gameplay for Gameplay/Paused/GameOver
         UpdateBackgroundsForState(newState);
 
         bool shouldBlockInput = (newState == GameState.Paused || newState == GameState.Settings || newState == GameState.GameOver);
@@ -394,9 +444,8 @@ public class UIManager : MonoBehaviour
 
     private void UpdateBackgroundsForState(GameState newState)
     {
-        // Decide which background to show
         bool showMainMenuBg = (newState == GameState.MainMenu) || (newState == GameState.Settings && !isInGameSettings);
-        bool showGameplayBg  = (newState == GameState.Gameplay) || (newState == GameState.Paused) || (newState == GameState.GameOver) || (newState == GameState.Settings && isInGameSettings);
+        bool showGameplayBg = (newState == GameState.Gameplay) || (newState == GameState.Paused) || (newState == GameState.GameOver) || (newState == GameState.Settings && isInGameSettings);
 
         if (mainMenuBackground) mainMenuBackground.SetActive(showMainMenuBg);
         if (gameplayBackground) gameplayBackground.SetActive(showGameplayBg);
