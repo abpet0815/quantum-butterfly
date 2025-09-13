@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
@@ -40,6 +41,9 @@ public class GameManager : MonoBehaviour
         {
             Instance = this;
             
+            // FIXED: Setup card container with proper Canvas component
+            SetupCardContainer();
+            
             // Create GridLayoutManager if not assigned
             if (gridLayoutManager == null)
             {
@@ -78,18 +82,36 @@ public class GameManager : MonoBehaviour
         }
     }
     
+    // FIXED: Setup card container to render above backgrounds
+    private void SetupCardContainer()
+    {
+        if (cardContainer != null)
+        {
+            Canvas cardCanvas = cardContainer.GetComponent<Canvas>();
+            if (cardCanvas == null)
+            {
+                cardCanvas = cardContainer.gameObject.AddComponent<Canvas>();
+                cardContainer.gameObject.AddComponent<GraphicRaycaster>();
+            }
+            
+            // Set canvas to render mode and high sorting order
+            cardCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            cardCanvas.overrideSorting = true;
+            cardCanvas.sortingOrder = 10; // High priority to render above backgrounds
+            
+            Debug.Log("🃏 Card container setup with high sorting order for visibility above backgrounds");
+        }
+    }
+    
     private void Start()
     {
-        // DON'T auto-create grid on start - let UI control when to create
         Debug.Log("🎮 GameManager ready - waiting for UI to trigger grid creation");
     }
     
     public void CreateGrid()
     {
-        // Clear existing cards first
         ClearAllCards();
         
-        // Ensure even number of cards for pairs
         int totalCards = gridSize.x * gridSize.y;
         if (totalCards % 2 != 0)
         {
@@ -101,7 +123,6 @@ public class GameManager : MonoBehaviour
         
         totalPairs = totalCards / 2;
         
-        // Calculate responsive layout
         Vector2 cardSize = Vector2.one;
         Vector2 spacing = Vector2.one * fallbackCardSpacing;
         
@@ -111,18 +132,15 @@ public class GameManager : MonoBehaviour
             spacing = gridLayoutManager.GetCalculatedSpacing();
         }
         
-        // Create card values (pairs)
         List<int> cardValues = new List<int>();
         for (int i = 0; i < totalPairs; i++)
         {
             cardValues.Add(i);
-            cardValues.Add(i); // Add pair
+            cardValues.Add(i);
         }
         
-        // Shuffle the values
         ShuffleList(cardValues);
         
-        // Create cards in grid
         int cardIndex = 0;
         for (int y = 0; y < gridSize.y; y++)
         {
@@ -137,7 +155,6 @@ public class GameManager : MonoBehaviour
                 }
                 else
                 {
-                    // Fallback positioning
                     position = new Vector3(
                         x * fallbackCardSpacing - (gridSize.x - 1) * fallbackCardSpacing / 2f,
                         y * fallbackCardSpacing - (gridSize.y - 1) * fallbackCardSpacing / 2f,
@@ -148,13 +165,11 @@ public class GameManager : MonoBehaviour
                 GameObject cardObj = Instantiate(cardPrefab, position, Quaternion.identity, cardContainer);
                 Card card = cardObj.GetComponent<Card>();
                 
-                // Set card scale based on calculated size
                 if (useResponsiveLayout && autoScaleCards)
                 {
                     card.SetCardScale(new Vector3(cardSize.x, cardSize.y, 1f));
                 }
                 
-                // Set card value and sprite
                 card.SetCardValue(cardValues[cardIndex]);
                 if (cardValues[cardIndex] < cardSprites.Count)
                 {
@@ -171,7 +186,6 @@ public class GameManager : MonoBehaviour
     
     public void ClearAllCards()
     {
-        // Destroy all instantiated cards
         foreach (Card card in allCards)
         {
             if (card != null && card.gameObject != null)
@@ -180,11 +194,8 @@ public class GameManager : MonoBehaviour
             }
         }
         
-        // Clear the lists
         allCards.Clear();
         flippedCards.Clear();
-        
-        // Reset game state
         matchedPairs = 0;
         isCheckingMatch = false;
         
@@ -193,34 +204,27 @@ public class GameManager : MonoBehaviour
     
     public void OnCardClicked(Card clickedCard)
     {
-        // Prevent clicking during match check or if card is already handled
         if (isCheckingMatch || clickedCard.IsMatched)
             return;
             
-        // Prevent more than maxFlippedCards from being flipped
         if (flippedCards.Count >= maxFlippedCards)
             return;
         
-        // Allow flipping even if card is already flipped (for continuous interaction)
         if (clickedCard.IsFlipped && flippedCards.Contains(clickedCard))
             return;
         
-        // Record the move for scoring
         if (scoreManager != null)
         {
             scoreManager.RecordMove();
         }
         
-        // Flip the card
         clickedCard.FlipCard();
         
-        // Add to flipped cards if not already there
         if (!flippedCards.Contains(clickedCard))
         {
             flippedCards.Add(clickedCard);
         }
         
-        // Check for match when we have maxFlippedCards flipped
         if (flippedCards.Count == maxFlippedCards)
         {
             StartCoroutine(CheckForMatch());
@@ -231,13 +235,11 @@ public class GameManager : MonoBehaviour
     {
         isCheckingMatch = true;
         
-        // Wait for the flip animation to complete
         yield return new WaitForSeconds(matchCheckDelay);
         
         bool isMatch = true;
         int firstCardValue = flippedCards[0].CardValue;
         
-        // Check if all flipped cards have the same value
         for (int i = 1; i < flippedCards.Count; i++)
         {
             if (flippedCards[i].CardValue != firstCardValue)
@@ -249,20 +251,19 @@ public class GameManager : MonoBehaviour
         
         if (isMatch)
         {
-            // Cards match!
+            Debug.Log($"✅ MATCH! Cards {firstCardValue}");
+            
             foreach (Card card in flippedCards)
             {
                 card.SetMatched();
             }
             matchedPairs++;
             
-            // Play match sound
             if (AudioManager.Instance != null)
             {
                 AudioManager.Instance.PlaySound(AudioManager.SoundType.CardMatch);
             }
             
-            // Record match for scoring
             if (scoreManager != null)
             {
                 scoreManager.RecordMatch(matchedPairs, totalPairs);
@@ -270,12 +271,10 @@ public class GameManager : MonoBehaviour
             
             Debug.Log($"Match found! Pairs matched: {matchedPairs}/{totalPairs}");
             
-            // Check win condition
             if (matchedPairs >= totalPairs)
             {
                 Debug.Log("🎉 You Win! All pairs matched!");
                 
-                // Play win sound
                 if (AudioManager.Instance != null)
                 {
                     AudioManager.Instance.PlaySound(AudioManager.SoundType.GameWin);
@@ -284,23 +283,21 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            // Play mismatch sound
+            Debug.Log($"❌ MISMATCH! Forcing cards back to face down");
+            
             if (AudioManager.Instance != null)
             {
                 AudioManager.Instance.PlaySound(AudioManager.SoundType.CardMismatch);
             }
             
-            // Record mismatch for scoring
             if (scoreManager != null)
             {
                 scoreManager.RecordMismatch();
             }
             
-            Debug.Log("No match - flipping cards back");
-            // Cards don't match, flip them back
             foreach (Card card in flippedCards)
             {
-                card.FlipCard(); // Flip back to face down
+                card.ForceFlipToBack();
             }
         }
         
@@ -319,54 +316,54 @@ public class GameManager : MonoBehaviour
         }
     }
     
-    // Method to load from JSON save data
     public void LoadFromSaveData(GameSaveData saveData)
     {
         Debug.Log($"🔄 Loading game from save data...");
         
-        // Clear current game
         ClearAllCards();
         
-        // Restore game settings
         gridSize = saveData.gridSize;
         matchedPairs = saveData.matchedPairs;
         totalPairs = saveData.totalPairs;
         
-        // Start coroutine to restore cards with proper timing
         StartCoroutine(RestoreCardsCoroutine(saveData.cards));
     }
     
-    // Coroutine to restore cards with proper timing
     private IEnumerator RestoreCardsCoroutine(List<CardSaveData> cardStates)
     {
         foreach (CardSaveData cardData in cardStates)
         {
-            // Create card at saved position
             GameObject cardObj = Instantiate(cardPrefab, cardData.GetPosition(), Quaternion.identity, cardContainer);
             Card card = cardObj.GetComponent<Card>();
             
-            // Get the correct sprite for this card
             Sprite frontSprite = null;
             if (cardData.cardValue < cardSprites.Count)
             {
                 frontSprite = cardSprites[cardData.cardValue];
             }
             
-            // Restore card with sprite
             card.RestoreFromSaveData(cardData, frontSprite);
             
             allCards.Add(card);
             
-            // Wait one frame between cards to ensure proper initialization
             yield return null;
         }
         
-        Debug.Log($"✅ Game restored: {allCards.Count} cards, Visual states synced!");
+        yield return new WaitForSeconds(0.1f);
+        
+        foreach (Card card in allCards)
+        {
+            if (!card.IsMatched && card.IsFlipped)
+            {
+                card.ForceFlipToBack();
+            }
+        }
+        
+        Debug.Log($"✅ Game restored: {allCards.Count} cards, all visuals synced!");
     }
     
     public void RestartGame()
     {
-        // Delete save file on restart
         if (jsonSaveManager != null)
         {
             jsonSaveManager.DeleteSave();
@@ -374,7 +371,6 @@ public class GameManager : MonoBehaviour
         
         CreateGrid();
         
-        // Restart scoring
         if (scoreManager != null)
         {
             scoreManager.StartNewGame();
@@ -384,42 +380,36 @@ public class GameManager : MonoBehaviour
     }
     
     public void SetGridSize(Vector2Int newGridSize)
-{
-    gridSize = newGridSize;
-    Debug.Log($"🎯 Grid size set to: {gridSize.x}x{gridSize.y}");
-    
-    // Check if we have an active game with cards
-    if (allCards.Count > 0)
     {
-        Debug.Log($"🔄 Recreating grid immediately for active game");
+        gridSize = newGridSize;
+        Debug.Log($"🎯 Grid size set to: {gridSize.x}x{gridSize.y}");
         
-        // Save if there was a save before recreation
-        bool hadSave = jsonSaveManager != null && jsonSaveManager.HasSaveFile();
-        
-        // Clear and recreate grid
-        CreateGrid();
-        
-        // Restart scoring when grid changes mid-game
-        if (scoreManager != null)
+        if (allCards.Count > 0)
         {
-            scoreManager.StartNewGame();
+            Debug.Log($"🔄 Recreating grid immediately for active game");
+            
+            bool hadSave = jsonSaveManager != null && jsonSaveManager.HasSaveFile();
+            
+            CreateGrid();
+            
+            if (scoreManager != null)
+            {
+                scoreManager.StartNewGame();
+            }
+            
+            if (hadSave && jsonSaveManager != null)
+            {
+                jsonSaveManager.DeleteSave();
+                Debug.Log("🗑️ Save deleted due to grid size change");
+            }
+            
+            Debug.Log($"✅ Grid recreated with {allCards.Count} new cards");
         }
-        
-        // Delete save since game state changed
-        if (hadSave && jsonSaveManager != null)
+        else
         {
-            jsonSaveManager.DeleteSave();
-            Debug.Log("🗑️ Save deleted due to grid size change");
+            Debug.Log("📋 Grid size stored for next game creation");
         }
-        
-        Debug.Log($"✅ Grid recreated with {allCards.Count} new cards");
     }
-    else
-    {
-        Debug.Log("📋 Grid size stored for next game creation");
-    }
-}
-
     
     // Public getters for save system
     public List<Card> GetAllCards() => allCards;

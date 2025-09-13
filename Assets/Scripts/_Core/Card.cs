@@ -25,28 +25,45 @@ public class Card : MonoBehaviour
     private void Start()
     {
         transform.localScale = cardScale;
-        ShowBackSide();
+        // FIXED: Always ensure cards start showing back side
+        ForceShowBackSide();
         UpdateColliderSize();
     }
     
+    // FIXED: Force card to show back side regardless of internal state
+    private void ForceShowBackSide()
+    {
+        if (frontSprite != null && backSprite != null)
+        {
+            frontSprite.gameObject.SetActive(false);
+            backSprite.gameObject.SetActive(true);
+        }
+        
+        // Reset flipped state if not matched
+        if (!isMatched)
+        {
+            isFlipped = false;
+        }
+    }
+    
     public void FlipCard()
-{
-    // ADDITIONAL: Double-check pause state in flip method
-    if (GameInputManager.IsPaused || isFlipping || isMatched) 
     {
-        Debug.Log($"🚫 Card {cardValue}: Flip blocked - Paused: {GameInputManager.IsPaused}, Flipping: {isFlipping}, Matched: {isMatched}");
-        return;
+        // ADDITIONAL: Double-check pause state in flip method
+        if (GameInputManager.IsPaused || isFlipping || isMatched) 
+        {
+            Debug.Log($"🚫 Card {cardValue}: Flip blocked - Paused: {GameInputManager.IsPaused}, Flipping: {isFlipping}, Matched: {isMatched}");
+            return;
+        }
+        
+        // Play sound immediately
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySound(AudioManager.SoundType.CardFlip);
+        }
+        
+        // Start flip animation
+        currentFlipCoroutine = StartCoroutine(FlipCoroutine());
     }
-    
-    // Play sound immediately
-    if (AudioManager.Instance != null)
-    {
-        AudioManager.Instance.PlaySound(AudioManager.SoundType.CardFlip);
-    }
-    
-    // Start flip animation
-    currentFlipCoroutine = StartCoroutine(FlipCoroutine());
-}
 
     private IEnumerator FlipCoroutine()
     {
@@ -94,6 +111,32 @@ public class Card : MonoBehaviour
         Debug.Log($"Card {cardValue}: Flip complete - Now {(isFlipped ? "Front" : "Back")}");
     }
 
+    // FIXED: Force flip back method for mismatches
+    public void ForceFlipToBack()
+    {
+        Debug.Log($"🔧 Card {cardValue}: Forcing flip to back");
+        
+        // Stop any ongoing animations
+        if (currentFlipCoroutine != null)
+        {
+            StopCoroutine(currentFlipCoroutine);
+            currentFlipCoroutine = null;
+        }
+        
+        isFlipping = false;
+        
+        // Only flip back if not matched
+        if (!isMatched)
+        {
+            isFlipped = false;
+            ShowBackSide();
+            transform.localScale = cardScale;
+            UpdateColliderSize();
+        }
+        
+        Debug.Log($"Card {cardValue}: Force flip to back complete");
+    }
+
     public void RestoreFromSaveData(CardSaveData saveData, Sprite frontSpr = null)
     {
         SetCardValue(saveData.cardValue);
@@ -118,21 +161,20 @@ public class Card : MonoBehaviour
     {
         yield return null; // Wait one frame
         
+        // FIXED: Ensure proper visual state based on card status
         if (isMatched)
         {
             SetMatched();
-            ShowFrontSide();
-        }
-        else if (isFlipped)
-        {
-            ShowFrontSide();
         }
         else
         {
-            ShowBackSide();
+            // CRITICAL FIX: If card is flipped but not matched, force it to back
+            ForceShowBackSide();
         }
         
         UpdateColliderSize();
+        
+        Debug.Log($"Card {cardValue}: Visual sync complete - Matched: {isMatched}, Flipped: {isFlipped}, Visual: {(frontSprite.gameObject.activeSelf ? "Front" : "Back")}");
     }
 
     private void UpdateColliderSize()
@@ -202,20 +244,27 @@ public class Card : MonoBehaviour
             isFlipping = false;
             transform.localScale = cardScale; // Reset scale
         }
+        
+        // Ensure matched cards show front and are not interactive
+        isFlipped = true;
+        ShowFrontSide();
+        UpdateColliderSize();
+        
+        Debug.Log($"Card {cardValue}: Set as matched - showing front");
     }
     
     private void OnMouseDown()
-{
-    // CRITICAL: Block ALL card input when game is paused
-    if (GameInputManager.IsPaused)
     {
-        Debug.Log($"🚫 Card {cardValue}: Click blocked - Game is paused");
-        return;
+        // CRITICAL: Block ALL card input when game is paused
+        if (GameInputManager.IsPaused)
+        {
+            Debug.Log($"🚫 Card {cardValue}: Click blocked - Game is paused");
+            return;
+        }
+        
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnCardClicked(this);
+        }
     }
-    
-    if (GameManager.Instance != null)
-    {
-        GameManager.Instance.OnCardClicked(this);
-    }
-}
 }

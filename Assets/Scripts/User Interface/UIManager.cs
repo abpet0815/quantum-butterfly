@@ -56,7 +56,7 @@ public class UIManager : MonoBehaviour
     private bool isPaused = false;
     private Vector2Int pendingGridSize;
     private bool isInGameSettings = false;
-    private int selectedGridIndex = 2; // Default to 4x4
+    private int selectedGridIndex = 0; // Default to 2x2
 
     public enum GameState
     {
@@ -88,11 +88,52 @@ public class UIManager : MonoBehaviour
         SetupButtons();
         SetupGridSizeButtons();
         SubscribeToGameEvents();
+        
+        // Default to 2x2
+        pendingGridSize = new Vector2Int(2, 2);
+        
+        // FIXED: Setup background layering on start
+        SetupBackgroundLayering();
+        
         UpdateContinueButton();
-
-        pendingGridSize = new Vector2Int(4, 4);
-
         ShowMainMenu();
+    }
+
+    // FIXED: Method to ensure backgrounds render behind cards
+    private void SetupBackgroundLayering()
+    {
+        // Set backgrounds to render behind everything
+        if (mainMenuBackground != null)
+        {
+            Canvas bgCanvas = mainMenuBackground.GetComponent<Canvas>();
+            if (bgCanvas == null)
+                bgCanvas = mainMenuBackground.AddComponent<Canvas>();
+                
+            bgCanvas.overrideSorting = true;
+            bgCanvas.sortingOrder = -100; // Very low priority
+            
+            // Disable raycast target on background images
+            Image bgImage = mainMenuBackground.GetComponent<Image>();
+            if (bgImage != null)
+                bgImage.raycastTarget = false;
+        }
+
+        if (gameplayBackground != null)
+        {
+            Canvas bgCanvas = gameplayBackground.GetComponent<Canvas>();
+            if (bgCanvas == null)
+                bgCanvas = gameplayBackground.AddComponent<Canvas>();
+                
+            bgCanvas.overrideSorting = true;
+            bgCanvas.sortingOrder = -100; // Very low priority
+            
+            // Disable raycast target on background images
+            Image bgImage = gameplayBackground.GetComponent<Image>();
+            if (bgImage != null)
+                bgImage.raycastTarget = false;
+        }
+
+        Debug.Log("🎨 Background layering setup complete - backgrounds set to lowest rendering priority");
     }
 
     private void SetupButtons()
@@ -139,7 +180,6 @@ public class UIManager : MonoBehaviour
         if (gridSize5x6Button != null)
             gridSize5x6Button.onClick.AddListener(() => OnGridSizeButtonClicked(3));
 
-        // Update button states to show current selection
         UpdateGridSizeButtonVisuals();
     }
 
@@ -234,15 +274,36 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    // FIXED: Comprehensive continue button logic
     private void UpdateContinueButton()
     {
-        if (JsonSaveLoadManager.Instance != null && continueButton != null)
-        {
-            bool hasSave = JsonSaveLoadManager.Instance.HasSaveFile();
-            continueButton.gameObject.SetActive(hasSave);
+        if (continueButton == null) return;
 
-            if (hasSave) Debug.Log("✅ Save file found - Continue button enabled");
-            else Debug.Log("📂 No save file - Continue button hidden");
+        bool hasSave = false;
+        
+        // Check if save manager exists and has save file
+        if (JsonSaveLoadManager.Instance != null)
+        {
+            hasSave = JsonSaveLoadManager.Instance.HasSaveFile();
+        }
+
+        // CRITICAL: Only show continue button in main menu AND if save exists
+        bool shouldShowContinue = (currentState == GameState.MainMenu) && hasSave;
+        
+        continueButton.gameObject.SetActive(shouldShowContinue);
+        continueButton.interactable = shouldShowContinue;
+
+        if (shouldShowContinue)
+        {
+            Debug.Log("✅ Continue button shown - save file exists");
+        }
+        else if (currentState == GameState.MainMenu)
+        {
+            Debug.Log("📂 Continue button hidden - no save file");
+        }
+        else
+        {
+            Debug.Log($"📂 Continue button hidden - not in main menu (current: {currentState})");
         }
     }
 
@@ -278,6 +339,8 @@ public class UIManager : MonoBehaviour
         isInGameSettings = false;
 
         GameInputManager.SetPaused(false);
+
+        // FIXED: Always update continue button when showing main menu
         UpdateContinueButton();
 
         PlayButtonSound();
@@ -310,16 +373,19 @@ public class UIManager : MonoBehaviour
 
         if (perfectGameText)
         {
-            perfectGameText.text = stats.perfectGame ? "🏆 PERFECT GAME!" : "";
+            perfectGameText.text = stats.perfectGame ? "PERFECT GAME!" : "";
             perfectGameText.gameObject.SetActive(stats.perfectGame);
         }
+
+        // FIXED: Update continue button after game over (should be hidden since we're not in main menu)
+        UpdateContinueButton();
     }
 
     public void ShowSettings()
     {
         previousState = currentState;
         SetActivePanel(GameState.Settings);
-        UpdateGridSizeButtonVisuals(); // Refresh button states when showing settings
+        UpdateGridSizeButtonVisuals();
         PlayButtonSound();
     }
 
@@ -327,6 +393,7 @@ public class UIManager : MonoBehaviour
     {
         PlayButtonSound();
 
+        // Delete save file when starting new game
         if (JsonSaveLoadManager.Instance != null)
         {
             JsonSaveLoadManager.Instance.DeleteSave();
@@ -439,6 +506,9 @@ public class UIManager : MonoBehaviour
 
         currentState = newState;
 
+        // FIXED: Update continue button whenever state changes
+        UpdateContinueButton();
+
         Debug.Log($"🎯 UI State: {newState}, Input Blocked: {shouldBlockInput}");
     }
 
@@ -486,8 +556,14 @@ public class UIManager : MonoBehaviour
             GameManager.Instance.ClearAllCards();
         }
 
+        // Delete save file on game completion
+        if (JsonSaveLoadManager.Instance != null)
+        {
+            JsonSaveLoadManager.Instance.DeleteSave();
+        }
+
         ShowGameOver(stats);
-        Debug.Log("🎉 Game completed - cards cleared");
+        Debug.Log("🎉 Game completed - cards cleared, save deleted");
     }
 
     private void PlayButtonSound()
